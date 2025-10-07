@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Firebase Firestore Test</title>
+</head>
+<body>
+  <h1>Firebase Firestore Diagnostic Test</h1>
+  <button onclick="runTests()">Run Tests</button>
+  <pre id="output" style="background: #1e293b; color: #e2e8f0; padding: 20px; margin-top: 20px; border-radius: 8px;"></pre>
+
+  <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-firestore-compat.js"></script>
+  <script src="/env.js"></script>
+  
+  <script>
+    const output = document.getElementById('output');
+    
+    function log(msg, type = 'info') {
+      const prefix = type === 'error' ? '❌' : type === 'success' ? '✅' : '📋';
+      output.textContent += prefix + ' ' + msg + '\n';
+      console.log(msg);
+    }
+
+    // Initialize Firebase
+    const config = {
+      apiKey: window.__env.FIREBASE_API_KEY,
+      authDomain: window.__env.FIREBASE_AUTH_DOMAIN,
+      projectId: window.__env.FIREBASE_PROJECT_ID,
+      storageBucket: window.__env.FIREBASE_STORAGE_BUCKET,
+      messagingSenderId: window.__env.FIREBASE_MESSAGING_SENDER_ID,
+      appId: window.__env.FIREBASE_APP_ID
+    };
+
+    firebase.initializeApp(config);
+    const auth = firebase.auth();
+    const db = firebase.firestore();
+
+    log('Firebase initialized with project: ' + config.projectId);
+    log('Expected Admin UID: ' + window.__env.ADMIN_UID);
+
+    async function runTests() {
+      output.textContent = '🧪 Running Firebase Diagnostics...\n\n';
+      
+      try {
+        // Test 1: Check auth state
+        log('TEST 1: Checking authentication...');
+        const user = auth.currentUser;
+        if (!user) {
+          log('Not signed in. Signing in as admin...', 'info');
+          
+          // Sign in as admin
+          try {
+            await auth.signInWithEmailAndPassword('admin@quiz.com', 'admin@qwaszx');
+            log('✅ Signed in successfully!', 'success');
+            log('Current user UID: ' + auth.currentUser.uid, 'info');
+            log('Is admin? ' + (auth.currentUser.uid === window.__env.ADMIN_UID), 'info');
+          } catch (authError) {
+            log('Auth error: ' + authError.message, 'error');
+            log('Error code: ' + authError.code, 'error');
+            return;
+          }
+        } else {
+          log('Already signed in as: ' + user.email, 'success');
+          log('User UID: ' + user.uid, 'info');
+          log('Is admin? ' + (user.uid === window.__env.ADMIN_UID), 'info');
+        }
+
+        // Test 2: Try to write to test collection
+        log('\nTEST 2: Attempting write to "test" collection...');
+        try {
+          const testDoc = await db.collection('test').add({
+            timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+            message: 'Test from diagnostic page',
+            userId: auth.currentUser.uid
+          });
+          log('✅ Write to "test" collection succeeded! Doc ID: ' + testDoc.id, 'success');
+        } catch (writeError) {
+          log('❌ Write to "test" failed: ' + writeError.message, 'error');
+          log('Error code: ' + writeError.code, 'error');
+          
+          if (writeError.code === 'permission-denied') {
+            log('\n🚫 PERMISSION DENIED for "test" collection', 'error');
+            log('Your Firestore rules may be blocking writes to the test collection.', 'error');
+          }
+        }
+
+        // Test 3: Try to write to quizzes collection
+        log('\nTEST 3: Attempting write to "quizzes" collection...');
+        try {
+          const quizDoc = await db.collection('quizzes').add({
+            title: 'Diagnostic Test Quiz',
+            questions: [],
+            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+            createdBy: auth.currentUser.uid
+          });
+          log('✅ Write to "quizzes" succeeded! Doc ID: ' + quizDoc.id, 'success');
+          
+          // Clean up
+          await db.collection('quizzes').doc(quizDoc.id).delete();
+          log('✅ Cleanup: Test quiz deleted', 'success');
+        } catch (quizError) {
+          log('❌ Write to "quizzes" failed: ' + quizError.message, 'error');
+          log('Error code: ' + quizError.code, 'error');
+          
+          if (quizError.code === 'permission-denied') {
+            log('\n🚫 PERMISSION DENIED for "quizzes" collection', 'error');
+            log('Checking admin UID match...', 'info');
+            log('Expected: ' + window.__env.ADMIN_UID, 'info');
+            log('Actual: ' + auth.currentUser.uid, 'info');
+            log('Match? ' + (auth.currentUser.uid === window.__env.ADMIN_UID), 'info');
+          }
+        }
+
+        // Test 4: Try to write to liveSession collection
+        log('\nTEST 4: Attempting write to "liveSession" collection...');
+        try {
+          const sessionDoc = await db.collection('liveSession').add({
+            quizId: 'test-quiz-id',
+            status: 'waiting',
+            currentQuestionIndex: -1,
+            questionStartTimes: {},
+            responses: {},
+            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+            createdBy: auth.currentUser.uid
+          });
+          log('✅ Write to "liveSession" succeeded! Doc ID: ' + sessionDoc.id, 'success');
+          
+          // Clean up
+          await db.collection('liveSession').doc(sessionDoc.id).delete();
+          log('✅ Cleanup: Test session deleted', 'success');
+        } catch (sessionError) {
+          log('❌ Write to "liveSession" failed: ' + sessionError.message, 'error');
+          log('Error code: ' + sessionError.code, 'error');
+          
+          if (sessionError.code === 'permission-denied') {
+            log('\n🚫 PERMISSION DENIED for "liveSession" collection', 'error');
+            log('This is the same error you\'re getting in the main app!', 'error');
+          }
+        }
+
+        // Test 5: Read from Firestore
+        log('\nTEST 5: Attempting read from "liveSession" collection...');
+        try {
+          const snapshot = await db.collection('liveSession').limit(5).get();
+          log('✅ Read from "liveSession" succeeded! Found ' + snapshot.size + ' docs', 'success');
+        } catch (readError) {
+          log('❌ Read failed: ' + readError.message, 'error');
+        }
+
+        log('\n✅ DIAGNOSTIC COMPLETE', 'success');
+        log('\nIf you see PERMISSION DENIED errors above:', 'info');
+        log('1. Go to Firebase Console → Firestore Database → Rules', 'info');
+        log('2. Make sure the rules are PUBLISHED (not just saved)', 'info');
+        log('3. Wait 1-2 minutes after publishing for rules to propagate', 'info');
+        log('4. Check that your admin UID matches: ' + window.__env.ADMIN_UID, 'info');
+        
+      } catch (err) {
+        log('Unexpected error: ' + err.message, 'error');
+        console.error(err);
+      }
+    }
+  </script>
+</body>
+</html>

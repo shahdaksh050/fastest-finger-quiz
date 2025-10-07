@@ -1,0 +1,19 @@
+{
+  "name": "fastest-finger-quiz-local",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Local dev server for Fastest Finger First Quiz",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.0.0",
+    "express": "^4.18.2",
+    "firebase-admin": "^11.12.0"
+  },
+  "devDependencies": {
+    "nodemon": "^2.0.22"
+  }
+}

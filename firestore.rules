@@ -1,0 +1,75 @@
+// COPY THESE EXACT RULES TO FIREBASE CONSOLE
+// Go to: https://console.firebase.google.com/project/quiz-app-295a4/firestore/rules
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // IMPORTANT: Replace this UID with your actual admin UID from .env
+    // Current admin UID from your .env: QaaAbC8pSAcM0xbPtMYWW96l61x1
+    function isAdmin() {
+      return request.auth != null && request.auth.uid == 'QaaAbC8pSAcM0xbPtMYWW96l61x1';
+    }
+    
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    // Test collection (for diagnostics) - REMOVE IN PRODUCTION
+    match /test/{docId} {
+      allow read, write: if isSignedIn();
+    }
+    
+    // Quizzes collection
+    match /quizzes/{quizId} {
+      allow read: if isSignedIn();  // Anyone signed in can read
+      allow create, update, delete: if isAdmin();  // Only admin can write
+    }
+    
+    // Live sessions
+    match /liveSession/{sessionId} {
+      allow read: if isSignedIn();  // Anyone signed in can read
+      allow create: if isAdmin();  // Only admin can create
+      allow update: if isAdmin() || canUpdateOwnResponse();  // Admin or participant updating their response
+      allow delete: if isAdmin();
+      
+      // Allow participants to update only their own response
+      function canUpdateOwnResponse() {
+        return isSignedIn() && 
+               request.resource.data.diff(resource.data).affectedKeys().hasOnly(['responses']);
+      }
+    }
+  }
+}
+
+
+// TROUBLESHOOTING STEPS:
+// 
+// 1. Copy rules above (starting from "rules_version") to Firebase Console
+// 2. Click "Publish" (NOT just save!)
+// 3. Wait 1-2 minutes for rules to propagate
+// 4. Clear browser cache (Ctrl+Shift+Delete)
+// 5. Refresh your app
+// 
+// COMMON ISSUES:
+// 
+// Issue 1: "Rules saved but not published"
+// Solution: Click the PUBLISH button in Firebase Console, not just Ctrl+S
+// 
+// Issue 2: "Admin UID mismatch"
+// Solution: Get your actual UID from Firebase Console → Authentication → Users
+//           Copy the UID of admin@quiz.com and update both:
+//           - .env file (ADMIN_UID=...)
+//           - FastestFingerSingle.jsx (const ADMIN_UID = '...')
+//           - These Firestore rules (line 8)
+// 
+// Issue 3: "Rules take time to propagate"
+// Solution: Wait 1-2 minutes after publishing rules
+// 
+// Issue 4: "Still getting permission denied after updating rules"
+// Solution: 
+//   - Check Firebase Console → Firestore → Rules tab shows your new rules
+//   - Check the "Last published" timestamp is recent
+//   - Make sure you're on the correct Firebase project (quiz-app-295a4)
+//   - Try signing out and back in
+//   - Clear all browser data for localhost:3000
