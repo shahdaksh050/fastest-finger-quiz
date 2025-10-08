@@ -16,7 +16,7 @@ Setup
 npm install
 ```
 
-2. Copy `.env.example` to `.env` and fill in your Firebase config and `ADMIN_UID`.
+2. Make an `.env` file to fill in your Firebase config and `ADMIN_UID`.
 
 3. Start the server:
 
